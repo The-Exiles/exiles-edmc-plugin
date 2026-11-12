@@ -75,8 +75,7 @@ What never leaves your PC: **chat**, both what you send and what you receive, yo
 game's music cues. Nothing at all is gathered or sent before you pair.
 
 It goes over HTTPS to the squad's own database behind the ops site. Signed in members can see who is in the
-game, where they are and what they are doing, and the work you hand in counts on the squad's boards. Leaders can
-look at any member's activity.
+game, where they are and what they are doing, and the work you hand in counts on the squad's boards.
 
 Pairing gives this PC a key of its own. It is kept in EDMC's settings, where BGS-Tally keeps its key too. If
 you ever share EDMC's `config.toml` file, your key is in it, so do not post that file anywhere.
