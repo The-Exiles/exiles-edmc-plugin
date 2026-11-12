@@ -4,23 +4,31 @@ thread; results reach the plugin through `notify(kind, detail)` on that thread (
 Kinds: code {code, expiresAt}, paired {exdbKey, exdbBaseUrl, siteToken, member}, expired, failed <reason>.
 
 The plugin names its install when it asks for the code (0.2.3), so the site mints a key for this install alone: a pilot
-with EDMC on two PCs pairs both, and pairing one never ends the other's."""
+with EDMC on two PCs pairs both, and pairing one never ends the other's.
+
+A pairing is collected only by the plugin that asked for it (0.5.1). The code stands on the pilot's screen, where a
+stream, a screenshot or a shared screen shows it to others, so the code alone must not be enough to fetch the key. The
+plugin makes a secret for each pairing, sends it when it asks for the code and again with every ask after it
+(SECRET_HEADER), and the site hands the key to nobody who comes without it. The secret is never shown, kept or
+logged: it lives as long as the ask does."""
 from __future__ import annotations
 
 import logging
+import secrets
 import threading
 import time
 from typing import Any, Callable, Optional
 
 POLL_EVERY = 5.0
 WAIT_AT_MOST = 600.0
+SECRET_HEADER = "X-Exiles-Pair"
 
 
 class Pairing:
     def __init__(self, http: Callable[..., tuple], site_url: str, log: logging.Logger, notify: Callable[[str, Any], None],
                  clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
                  install: Optional[str] = None):
-        """http(method, url, body=None) -> (status_code, parsed_json_or_None)."""
+        """http(method, url, body=None, headers=None) -> (status_code, parsed_json_or_None)."""
         self._http = http
         self._install = install
         self._site = site_url.rstrip("/")
@@ -49,8 +57,12 @@ class Pairing:
             self.state = "idle"
 
     def _run(self) -> None:
+        secret = secrets.token_urlsafe(32)      # this pairing's own, 43 characters; a new one every time
+        asked = {"secret": secret}
+        if self._install:
+            asked["install"] = self._install
         try:
-            status, answer = self._http("POST", f"{self._site}/api/plugin/pair/start", {"install": self._install} if self._install else {})
+            status, answer = self._http("POST", f"{self._site}/api/plugin/pair/start", asked)
         except Exception as e:
             self._fail(f"the site did not answer ({e.__class__.__name__})")
             return
@@ -67,7 +79,7 @@ class Pairing:
             if self._stop.is_set():
                 return
             try:
-                status, answer = self._http("GET", f"{self._site}/api/plugin/pair/{self.code}")
+                status, answer = self._http("GET", f"{self._site}/api/plugin/pair/{self.code}", None, {SECRET_HEADER: secret})
             except Exception as e:
                 self._log.info(f"pairing: poll failed ({e.__class__.__name__}), trying again")
                 continue

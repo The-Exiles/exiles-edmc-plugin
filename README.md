@@ -48,8 +48,8 @@ When it is in the right place, this file exists:
 Once on each PC. There is no key to copy.
 
 1. Click **Pair** on the strip. It shows a code like `ABC-DEF`, good for ten minutes.
-2. Sign in on the [ops site](https://ops.theexiles.gg), open **Cmdr**, then **Settings**, and type the code into
-   the **Exiles plugin** card.
+2. Sign in on the [ops site](https://ops.theexiles.gg), open **Cmdr**, press **Settings** beside **Sign out**,
+   and type the code into the **Exiles plugin** card.
 3. A few seconds later the strip says **Connected**.
 
 Only ever type a code that your own EDMC is showing you. A code somebody else hands you would pair their PC as

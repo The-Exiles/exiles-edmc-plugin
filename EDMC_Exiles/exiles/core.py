@@ -294,8 +294,10 @@ class ExilesPlugin:
     def begin_pairing(self) -> None:
         if self.pairing and self.pairing.state == "waiting":
             return
-        self.pairing = Pairing(http=lambda method, url, body=None: self.http(method, url, body, headers=self._ua_headers()),
-                               site_url=self.site_url, log=self.log, notify=self._pairing_event, install=self.install_id)
+        def ask(method: str, url: str, body: Optional[dict] = None, headers: Optional[dict] = None) -> tuple:
+            return self.http(method, url, body, headers={**self._ua_headers(), **(headers or {})})
+
+        self.pairing = Pairing(http=ask, site_url=self.site_url, log=self.log, notify=self._pairing_event, install=self.install_id)
         self.pairing.start()
 
     def cancel_pairing(self) -> None:
