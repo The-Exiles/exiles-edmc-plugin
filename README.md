@@ -34,10 +34,10 @@ windows. The squad's database never counts the same thing twice.
 
 ## Install
 
-1. On this page press the green **Code** button, then **Download ZIP**.
+1. Open the [latest release](../../releases/latest) (**Releases** on the right of this page) and download the
+   `EDMC_Exiles` zip under **Assets**, not the **Source code** ones.
 2. In EDMC open **File**, **Settings**, **Plugins** and press **Open Plugins Folder**.
-3. Open the zip. Inside its one folder is a folder named `EDMC_Exiles`. Drag that folder into the plugins folder.
-   It has to keep that exact name.
+3. Open the zip and drag the `EDMC_Exiles` folder in it into the plugins folder. It has to keep that exact name.
 4. Restart EDMC. The Exiles strip shows in EDMC's main window and says **Not paired yet**.
 
 When it is in the right place, this file exists:
@@ -84,8 +84,8 @@ you ever share EDMC's `config.toml` file, your key is in it, so do not post that
 ## Stop, update, remove
 
 - **Stop for now:** close EDMC. The plugin sends nothing while EDMC is closed.
-- **Update:** download the zip again, close EDMC, copy the new `EDMC_Exiles` folder over the old one and start
-  EDMC. You stay paired.
+- **Update:** download the zip from the latest release, close EDMC, copy the new `EDMC_Exiles` folder over the old
+  one and start EDMC. You stay paired.
 - **Remove:** click **Settings** on the strip, press **Remove** beside **This PC**, then **Really remove**.
   That ends this PC's key. Then close EDMC and delete the `EDMC_Exiles` folder.
 
