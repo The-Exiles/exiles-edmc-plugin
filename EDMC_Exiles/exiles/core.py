@@ -3,6 +3,7 @@ reads the core and drains `ui_queue` on the main thread. Network, EDMC's config 
 injected, so the replay harness and the tests run the same code without EDMC."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import logging
 import queue
@@ -14,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from . import updater
 from .pairing import Pairing
 from .sender import Sender
 from .state import StateTracker
@@ -89,11 +91,14 @@ class Settings:
 
 class ExilesPlugin:
     def __init__(self, *, plugin_dir: Path, settings: Settings, http: Callable[..., tuple], game_running: Callable[[], bool],
-                 log: logging.Logger, version: str, edmc_version: str = "", clock: Callable[[], float] = time.monotonic):
-        """http(method, url, body=None, headers=None, timeout=20) -> (status_code, parsed_json_or_None)."""
+                 log: logging.Logger, version: str, edmc_version: str = "", clock: Callable[[], float] = time.monotonic,
+                 download: Optional[Callable[..., tuple]] = None):
+        """http(method, url, body=None, headers=None, timeout=20) -> (status_code, parsed_json_or_None).
+        download(url, limit, timeout=60, headers=None) -> (status_code, bytes or None), for a new version's zip (0.6.0)."""
         self.plugin_dir = Path(plugin_dir)
         self.settings = settings
         self.http = http
+        self.download = download
         self.game_running = game_running
         self.log = log
         self.version = version
@@ -473,8 +478,58 @@ class ExilesPlugin:
             self.settings.set("update_checked", str(int(time.time())))
             latest = str(answer["version"])
             self.update = {"latest": latest, "url": answer.get("downloadUrl") or answer.get("url"), "notes": answer.get("notes"),
-                           "newer": version_tuple(latest) > version_tuple(self.version)}
+                           "newer": version_tuple(latest) > version_tuple(self.version), "installed": False, "trouble": None}
+            if self.update["newer"]:
+                self._put_update_in_place(answer)
             self._from_worker("update", self.update)
+
+    def _put_update_in_place(self, answer: dict) -> None:
+        """The newer version's zip fetched, checked (updater.py says how) and written over this plugin, to start the next
+        time EDMC starts (0.6.0). Whatever stops it is kept in update["trouble"] for Copy details, and the Settings page
+        keeps its button for an update by hand."""
+        u = self.update
+        try:
+            on_disk = (self.plugin_dir / updater.LAST).read_text(encoding="utf-8").strip()
+        except OSError:
+            on_disk = None
+        if on_disk == u["latest"]:
+            u["installed"] = True          # put in place earlier, waiting for EDMC to start again
+            return
+        url, signature = answer.get("downloadUrl"), answer.get("signature")
+        if not isinstance(url, str) or not isinstance(signature, str) or self.download is None:
+            u["trouble"] = "the site names no signed zip"
+            return
+        if not (url.startswith("https://") or (self.settings.in_memory and url.startswith("http://127.0.0.1"))):
+            u["trouble"] = "the zip's address is not https"
+            return
+        # the site hands its zips only to a paired plugin, by its token; the token never goes to any other address
+        headers = self._site_headers() if url.startswith(self.site_url + "/") else {}
+        try:
+            status, data = self.download(url, limit=updater.MOST_BYTES, timeout=60, headers=headers)
+        except Exception as e:
+            u["trouble"] = f"the download did not answer ({e.__class__.__name__})"
+            return
+        if status != 200 or not data:
+            u["trouble"] = f"the download answered HTTP {status}" if status != 200 else "the download was empty or too big"
+            return
+        want = str(answer.get("sha256") or "").lower()
+        if want and hashlib.sha256(data).hexdigest() != want:
+            u["trouble"] = "the zip is not the one the site named"
+            return
+        try:
+            sig = base64.b64decode(signature, validate=True)
+        except ValueError:
+            sig = b""
+        try:
+            if not updater.signed(data, sig):
+                raise ValueError("the zip is not signed with the squad's release key")
+            updater.put_in_place(self.plugin_dir, updater.unpack(data, u["latest"]))
+        except Exception as e:
+            u["trouble"] = str(e) if isinstance(e, ValueError) else f"it could not be written ({e.__class__.__name__})"
+            self.log.warning(f"version {u['latest']} not put in place: {u['trouble']}")
+            return
+        u["installed"] = True
+        self.log.info(f"version {u['latest']} put in place; it starts the next time EDMC starts")
 
     # ----- network --------------------------------------------------------------------------------------------------
     def _ua_headers(self) -> dict:

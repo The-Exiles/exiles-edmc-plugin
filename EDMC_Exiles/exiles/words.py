@@ -470,9 +470,13 @@ def session_words(core) -> Optional[str]:
 
 
 def version_words(core) -> tuple:
-    """(words, newer) for the version line."""
-    newer = bool(core.update and core.update.get("newer"))
-    return f"Version {core.version}" + (f". Version {core.update['latest']} is out." if newer else ""), newer
+    """(words, newer) for the version line. `newer` is True while a newer version is out and not yet in place, and the
+    page then offers its button for an update by hand; one already put in place waits for EDMC to start again (0.6.0)."""
+    u = core.update or {}
+    if u.get("newer") and u.get("installed"):
+        return f"Version {core.version}. Version {u['latest']} is installed and starts the next time EDMC starts.", False
+    newer = bool(u.get("newer"))
+    return f"Version {core.version}" + (f". Version {u['latest']} is out." if newer else ""), newer
 
 
 # ----- the paired PCs, on the Settings tab (0.3.0) -------------------------------------------------------------------------
@@ -540,6 +544,10 @@ def details_words(core, now: Optional[datetime] = None) -> str:
         f"Last trouble: {s.last_error or 'none'}",
         "Site: " + (core.feed_error if core.feed_error else f"read {ago(feed.get('at'), now)}" if feed.get("at") else "not read yet"),
     ]
+    u = core.update if isinstance(core.update, dict) else {}
+    if u.get("newer"):
+        lines.append(f"Update: {u.get('latest')} " + ("installed, starts the next time EDMC starts" if u.get("installed")
+                                                      else f"not installed ({u.get('trouble') or 'not tried yet'})"))
     pcs = pcs_rows(feed)
     if pcs is not None:
         lines.append(f"Paired PCs: {len(pcs)}")

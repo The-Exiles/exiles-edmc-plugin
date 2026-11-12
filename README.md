@@ -34,8 +34,8 @@ windows. The squad's database never counts the same thing twice.
 
 ## Install
 
-1. Open the [latest release](../../releases/latest) (**Releases** on the right of this page) and download the
-   `EDMC_Exiles` zip under **Assets**, not the **Source code** ones.
+1. Sign in on the [ops site](https://ops.theexiles.gg), open **Cmdr**, press **Settings** beside **Sign out**, and
+   press **Download** on the **Exiles plugin** card. The plugin is for full members of the squad.
 2. In EDMC open **File**, **Settings**, **Plugins** and press **Open Plugins Folder**.
 3. Open the zip and drag the `EDMC_Exiles` folder in it into the plugins folder. It has to keep that exact name.
 4. Restart EDMC. The Exiles strip shows in EDMC's main window and says **Not paired yet**.
@@ -83,8 +83,10 @@ you ever share EDMC's `config.toml` file, your key is in it, so do not post that
 ## Stop, update, remove
 
 - **Stop for now:** close EDMC. The plugin sends nothing while EDMC is closed.
-- **Update:** download the zip from the latest release, close EDMC, copy the new `EDMC_Exiles` folder over the old
-  one and start EDMC. You stay paired.
+- **Update:** nothing to do. When a new version is out, the plugin downloads it from the ops site, checks that it
+  was signed with the squad's release key, and puts it in place. It starts the next time EDMC starts, and you stay
+  paired. To update by hand: download the zip from the Exiles plugin card again, close EDMC, copy the new
+  `EDMC_Exiles` folder over the old one and start EDMC.
 - **Remove:** click **Settings** on the strip, press **Remove** beside **This PC**, then **Really remove**.
   That ends this PC's key. Then close EDMC and delete the `EDMC_Exiles` folder.
 
@@ -106,15 +108,16 @@ you ever share EDMC's `config.toml` file, your key is in it, so do not post that
 | `EDMC_Exiles/exiles/core.py` | the hooks, the heartbeat, pairing and the read of the site's feed |
 | `EDMC_Exiles/exiles/sender.py` | one worker thread that sends everything: batches, retries, and a spool on disk while offline |
 | `EDMC_Exiles/exiles/pairing.py` | pairing by code |
+| `EDMC_Exiles/exiles/updater.py` | updates: checks a new version's signature and puts it in place |
 | `EDMC_Exiles/exiles/status.py` | which Status entries are worth sending |
 | `EDMC_Exiles/exiles/state.py` | which parts of EDMC's commander state are sent, and when |
 | `EDMC_Exiles/exiles/words.py` | every word the plugin shows |
 | `EDMC_Exiles/exiles/ui.py` | the strip and the Exiles window |
 | `EDMC_Exiles/version.txt` | the version, which the Settings tab shows too |
 
-The plugin talks to two addresses, both ours: `ops.theexiles.gg` for pairing, orders, wars, your tick and the
-squad in the game, and `api.exdb.theexiles.gg`, where your journal goes. EDMC's own window never waits on the
-network.
+The plugin talks to two addresses, both ours: `ops.theexiles.gg` for pairing, orders, wars, your tick, the squad in
+the game and its own updates, and `api.exdb.theexiles.gg`, where your journal goes. EDMC's own window never waits on
+the network.
 
 ## License
 

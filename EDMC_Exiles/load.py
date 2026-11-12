@@ -1,5 +1,5 @@
 """EDMC_Exiles: The Exiles' own plugin for EDMC, beside BGS Tally. These are EDMC's entry points; everything else
-lives in exiles/ (core, sender, status, state, pairing, words, ui). See README.md at the repo root.
+lives in exiles/ (core, sender, status, state, pairing, updater, words, ui). See README.md at the repo root.
 
 There is no plugin_prefs: the plugin asks EDMC for no tab in its Settings dialog (0.2.6). Two settings pages were one
 too many, and a box a pilot can type in is a way to break the plugin. The one settings page is the Exiles window's,
@@ -47,7 +47,7 @@ if str(PLUGIN_DIR.parent) not in sys.path:
     sys.path.insert(0, str(PLUGIN_DIR.parent))
 
 from EDMC_Exiles.exiles.core import ExilesPlugin, Settings   # noqa: E402
-from EDMC_Exiles.exiles.net import make_http   # noqa: E402
+from EDMC_Exiles.exiles.net import make_download, make_http   # noqa: E402
 
 this = SimpleNamespace(core=None, strip=None)
 
@@ -71,7 +71,8 @@ def _user_agent() -> str:
 def plugin_start3(plugin_dir: str) -> str:
     session = new_session() if callable(new_session) else None
     this.core = ExilesPlugin(plugin_dir=Path(plugin_dir), settings=Settings(config), http=make_http(_user_agent(), session),
-                             game_running=_game_running, log=logger, version=VERSION, edmc_version=_edmc_version())
+                             game_running=_game_running, log=logger, version=VERSION, edmc_version=_edmc_version(),
+                             download=make_download(_user_agent(), session))
     this.core.start()
     # The whole package is loaded now, never piece by piece later. EDMC runs for days, and a newer version copied over
     # it would otherwise be imported half and half the first time a part of it is needed: new code on old words.

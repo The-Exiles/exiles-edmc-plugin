@@ -240,7 +240,7 @@ class Strip:
         alert = alert_words(core.last_status)
         on_foot = bool(alert and decode_flags(core.last_status.get("Flags"), core.last_status.get("Flags2")).get("on_foot"))
         needs_pair = needs_pairing(core)
-        newer = core.update.get("latest") if core.update and core.update.get("newer") else None
+        newer = core.update.get("latest") if core.update and core.update.get("newer") and not core.update.get("installed") else None
         orders = orders_words(core)
         want = (level, words, line, nudge, orders, alert, on_foot, core.paired, needs_pair, newer)
         if want == self._shown:
