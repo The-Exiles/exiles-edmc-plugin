@@ -14,6 +14,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
+from urllib.parse import urlencode
 
 from . import updater
 from .pairing import Pairing
@@ -34,6 +35,15 @@ UPDATE_EVERY = 86400.0
 HAND_INS = frozenset({"RedeemVoucher", "MissionCompleted", "MarketSell", "SellExplorationData", "MultiSellExplorationData",
                       "SellOrganicData", "SearchAndRescue"})
 FEED_SOON = (25.0, 70.0)
+# The strip says what the pilot carries to hand in and the system they are in (0.7.0), so the feed is read soon after
+# what changes either, whatever the window: a jump, a hand-in of bonds or vouchers, a death (FEED_SOON); and after a bond
+# or a bounty earned, once (FEED_KILL_SOON) and no oftener than FEED_KILL_EVERY, as a zone pays one every half minute.
+# A read already asked for is never put back, and two asked for within FEED_SOON_GAP of each other are one.
+STRIP_SOON = frozenset({"FSDJump", "CarrierJump", "Location", "RedeemVoucher", "Died"})
+STRIP_KILLS = frozenset({"FactionKillBond", "CapShipBond", "Bounty"})
+FEED_KILL_SOON = 30.0
+FEED_KILL_EVERY = 60.0
+FEED_SOON_GAP = 20.0
 # "ShutDown" is EDMC's own: it makes one when the game's process goes, and one when the game drops to its main menu
 # (monitor.py, on the Music cue "MainMenu"). Either way the pilot is out of the game until the next LoadGame.
 SHUTDOWN_EVENTS = ("Shutdown", "ShutDown")
@@ -229,8 +239,10 @@ class ExilesPlugin:
         elif name in FORCE_STATE_ON:
             self.in_session = True
             self.send_heartbeat(running=True)
-        if name in HAND_INS and self.paired and self.window_open:
+        if self.paired and (name in STRIP_SOON or (name in HAND_INS and self.window_open)):
             self.feed_soon()
+        elif self.paired and name in STRIP_KILLS:
+            self.feed_after_kill()
         self._from_worker("entry", name)
 
     def stamped(self, entry: dict) -> dict:
@@ -395,10 +407,33 @@ class ExilesPlugin:
         self._feed_wake.set()
 
     def feed_soon(self) -> None:
-        """Read the feed again shortly (FEED_SOON): the pilot just handed something in and the window is open."""
+        """Read the feed again shortly (FEED_SOON): the pilot just handed something in with the window open (0.3.0), or
+        jumped, handed in bonds or vouchers, or died (0.7.0). A read already asked for stays where it is."""
         now = self._clock()
-        self._feed_soon = [now + s for s in FEED_SOON]
+        soon = [t for t in self._feed_soon if t > now]
+        for s in FEED_SOON:
+            if not any(abs(now + s - t) < FEED_SOON_GAP for t in soon):
+                soon.append(now + s)
+        self._feed_soon = sorted(soon)
         self._feed_wake.set()
+
+    def feed_after_kill(self) -> None:
+        """Read the feed once after a bond or a bounty (0.7.0), for the strip's Hand in line: FEED_KILL_SOON from now
+        and at least FEED_KILL_EVERY after the last read, unless a read late enough to see it is already asked for."""
+        now = self._clock()
+        if any(t >= now + FEED_KILL_SOON / 2 for t in self._feed_soon):
+            return
+        due = now + FEED_KILL_SOON
+        if self._feed_read_at is not None:
+            due = max(due, self._feed_read_at + FEED_KILL_EVERY)
+        self._feed_soon = sorted([t for t in self._feed_soon if t > now] + [due])
+        self._feed_wake.set()
+
+    def feed_url(self) -> str:
+        """The feed's address. Since 0.7.0 it names the commander played (vouchers are a commander's) and the system
+        the pilot is in, so the site can say what they carry to hand in and where they stand."""
+        ask = {k: v for k, v in (("cmdr", self.cmdr), ("system", self.system)) if v}
+        return f"{self.site_url}/api/plugin/feed" + (f"?{urlencode(ask)}" if ask else "")
 
     def _feed_round(self) -> float:
         return FEED_EVERY_OPEN if self.window_open else FEED_EVERY_CLOSED
@@ -444,7 +479,7 @@ class ExilesPlugin:
         if not self.paired:
             return
         try:
-            status, answer = self.http("GET", f"{self.site_url}/api/plugin/feed", None, headers=self._site_headers())
+            status, answer = self.http("GET", self.feed_url(), None, headers=self._site_headers())
         except Exception as e:
             self.feed_error = f"the site did not answer ({e.__class__.__name__})"
             self.feed_reads += 1

@@ -25,10 +25,10 @@ except Exception:   # pragma: no cover
 
 from .core import ExilesPlugin, show_code
 from .status import decode_flags
-from .words import (AGAINST_US, BAD, DETAILS_NOTE, GOOD, IDLE, LAST_EMPTY, PCS_NOTE, PCS_NOTE_ONE, REMOVE, REMOVE_SURE, REMOVING, SENDS,
+from .words import (AGAINST_US, BAD, CARRY_NOTE, CARRY_TITLE, DETAILS_NOTE, GOOD, IDLE, LAST_EMPTY, PCS_NOTE, PCS_NOTE_ONE, REMOVE, REMOVE_SURE, REMOVING, SENDS,
                     TICK_EMPTY, WARN, XP_NOTE, ago, alert_words, details_words, link_state, needs_pairing, orders_blocks, orders_words,
                     pairing_words, pc_when, pcs_rows, session_words, squad_words, tick_day, tick_factions, tick_text, tick_tiles, tick_xp,
-                    unpair_words, version_words, war_card, war_words)
+                    unpair_words, version_words, war_card, war_words, carry_tiles, carry_words, here_words)
 
 DRAIN_EVERY_MS = 500
 LIVE_EVERY_MS = 20_000          # how often the window says its times again ("12 min ago")
@@ -150,16 +150,26 @@ class Strip:
         self.war.grid(row=1, column=1, sticky="w")
         self.nudge = tk.Label(lines, text="", anchor="w", justify="left")
         self.nudge.grid(row=2, column=1, sticky="w")
+        # the system the pilot is in, and what they carry still to hand in (2026-11-13): words.here_words, carry_words
+        self.here_name = tk.Label(lines, text="Here:", anchor="w")
+        self.here_name.grid(row=3, column=0, sticky="nw")
+        self.here = tk.Label(lines, text="", anchor="w", justify="left")
+        self.here.grid(row=3, column=1, sticky="w")
+        self.carry_name = tk.Label(lines, text="Hand in:", anchor="w")
+        self.carry_name.grid(row=4, column=0, sticky="nw")
+        self.carry = tk.Label(lines, text="", anchor="w", justify="left")
+        self.carry.grid(row=4, column=1, sticky="w")
         # the orders have a line only while they are new to the pilot (0.3.0); opening the Orders tab takes it away
         self.orders_name = tk.Label(lines, text="Orders:", anchor="w")
-        self.orders_name.grid(row=3, column=0, sticky="nw")
+        self.orders_name.grid(row=5, column=0, sticky="nw")
         self.orders_line = tk.Label(lines, text="", anchor="w", justify="left")
-        self.orders_line.grid(row=3, column=1, sticky="w")
+        self.orders_line.grid(row=5, column=1, sticky="w")
         self.alert_name = tk.Label(lines, text="Ship:", anchor="w")
-        self.alert_name.grid(row=4, column=0, sticky="nw")
+        self.alert_name.grid(row=6, column=0, sticky="nw")
         self.alert = tk.Label(lines, text="", anchor="w", justify="left")
-        self.alert.grid(row=4, column=1, sticky="w")
-        for widget in (self.war_name, self.war, self.nudge, self.orders_name, self.orders_line, self.alert_name, self.alert):
+        self.alert.grid(row=6, column=1, sticky="w")
+        for widget in (self.war_name, self.war, self.nudge, self.here_name, self.here, self.carry_name, self.carry, self.orders_name,
+                       self.orders_line, self.alert_name, self.alert):
             widget.grid_remove()
         if self.mark is not None:
             self.name.grid_remove()             # the emblem says whose lines these are
@@ -171,7 +181,7 @@ class Strip:
         # read on a dark Windows style, so a word is a hand only while the pointer is over it, and it takes the colour
         # and the face EDMC's theme gives the other lines, underlined (_dress).
         self.link_row = tk.Frame(lines)
-        self.link_row.grid(row=5, column=1, sticky="w", pady=(1, 2))
+        self.link_row.grid(row=7, column=1, sticky="w", pady=(1, 2))
         self.link_font = tkfont.Font(self.frame, font=self.status.cget("font"))
         self.link_font.configure(underline=True)
         self._dressed: Optional[tuple] = None
@@ -242,7 +252,8 @@ class Strip:
         needs_pair = needs_pairing(core)
         newer = core.update.get("latest") if core.update and core.update.get("newer") and not core.update.get("installed") else None
         orders = orders_words(core)
-        want = (level, words, line, nudge, orders, alert, on_foot, core.paired, needs_pair, newer)
+        here, carry = here_words(core), carry_words(core)
+        want = (level, words, line, nudge, here, carry, orders, alert, on_foot, core.paired, needs_pair, newer)
         if want == self._shown:
             return
         self._shown = want
@@ -253,11 +264,15 @@ class Strip:
             # beside the emblem a line carries its own name, as the lines of BGS Tally's block do
             self._row(f"War: {line}" if line else None, None, self.war)
             self._row(nudge if line else None, None, self.nudge)
+            self._row(f"Here: {here}" if here else None, None, self.here)
+            self._row(f"Hand in: {carry}" if carry else None, None, self.carry)
             self._row(f"Orders: {orders}" if orders else None, None, self.orders_line)
             self._row(f"{whose}: {alert[:1].lower()}{alert[1:]}" if alert else None, None, self.alert)
         else:
             self._row(line, self.war_name, self.war)
             self._row(nudge if line else None, None, self.nudge)
+            self._row(here, self.here_name, self.here)
+            self._row(carry, self.carry_name, self.carry)
             self._row(orders, self.orders_name, self.orders_line)
             self.alert_name.configure(text=f"{whose}:")
             self._row(alert, self.alert_name, self.alert)
@@ -328,7 +343,7 @@ class Strip:
         except Exception:
             width = 0
         try:
-            mine = max(lab.winfo_reqwidth() for lab in (self.name, self.war_name, self.orders_name, self.alert_name))
+            mine = max(lab.winfo_reqwidth() for lab in (self.name, self.war_name, self.here_name, self.carry_name, self.orders_name, self.alert_name))
             col = max(width, mine) + 2 * EDMC_PADX
             if col != self._label_col:
                 self._label_col = col
@@ -393,7 +408,7 @@ class Strip:
         if room < 120 or room == self._wrap:
             return
         self._wrap = room
-        for lab in (self.war, self.nudge, self.orders_line, self.alert):
+        for lab in (self.war, self.nudge, self.here, self.carry, self.orders_line, self.alert):
             lab.configure(wraplength=room)
         self.status.configure(wraplength=max(100, room - DOT_ROOM))
 
@@ -963,6 +978,16 @@ class ExilesWindow(tk.Toplevel):
         before = feed.get("lastTick") if isinstance(feed.get("lastTick"), dict) else None
         last = self._tick_last and before is not None
         block = before if last else t
+        carried = [] if last else carry_tiles(feed)
+        if carried:
+            # bonds and vouchers count only once handed in, before the tick, and a lost ship loses them (2026-11-13)
+            head_row = tk.Frame(self.page.row(after=6), bg=HULL)
+            head_row.pack(fill="x", pady=(2, 0))
+            section(head_row, CARRY_TITLE, "")[0].pack(side="left")
+            self._tiles(carried, across=3)
+            note = tk.Label(self.page.row(after=12), text=CARRY_NOTE, font=F_SMALL, bg=HULL, fg=INK, justify="left", anchor="w")
+            note.pack(anchor="w")
+            self.page.fit(note, 4)
         words = tick_text(block)
         wide = self.page.width >= TICK_WIDE
         chipped = before is not None or bool(words)

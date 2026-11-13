@@ -10,12 +10,14 @@ anyone else.
 ## What you get
 
 - **A strip in EDMC's main window.** A dot that says whether you are connected, the squad's war with its day
-  and score (the one in your system first), a nudge when that system needs an update, a mark when new orders are
-  out, and a word when your ship or suit needs one: low fuel, in danger, interdicted, wanted.
+  and score (the one in your system first), a nudge when that system needs an update, where we stand in the
+  system you are in, the bonds and bounty vouchers you carry for us, a mark when new orders are out, and a word
+  when your ship or suit needs one: low fuel, in danger, interdicted, wanted.
 - **Orders.** The squad's current orders, with a card for every war: the day, the score and what is at stake.
-- **My tick.** What you have handed in since the last tick, sorted by the faction it was for, ours on top, with
-  your squad XP beside it. Last tick shows the one before and the XP it paid. Copy puts the tick on the
-  clipboard as text for Discord.
+- **My tick.** What you still have to hand in (combat bonds and bounty vouchers, and how much of it is for us),
+  then what you have handed in since the last tick, sorted by the faction it was for, ours on top, with your
+  squad XP beside it. Last tick shows the one before and the XP it paid. Copy puts the tick on the clipboard as
+  text for Discord.
 - **Squad.** Who is in the game right now, where, and what they are doing. Click a system's name to copy it for
   the galaxy map.
 - **It counts for squad XP.** With the plugin running, your work is scored from your journal, whether or not you

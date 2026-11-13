@@ -103,6 +103,108 @@ def war_words(core) -> tuple:
     return ", ".join(bits), nudge
 
 
+# ----- what the pilot still carries, and the system they are in (0.7.0): for the wars, the bonds and vouchers a pilot
+# has earned and not yet handed in, and where the squad stands in the system they are in ------------------------------
+# The site sends both: feed.carrying, the combat bonds and bounty vouchers earned since they were last handed in, by
+# the faction that pays them out (none after a lost ship), and feed.here, its read of the system the pilot is in.
+# The values are the journal's: a station often pays more (bonds two to four times as much in the squad's hand-ins of
+# Oct and Nov 2026, bounties up to 1.2 times), so the note says so.
+CARRY_TITLE = "Still to hand in"
+CARRY_NOTE = ("None of it counts until you hand it in, before the tick. A lost ship loses it all. "
+              "These are the journal's values: stations often pay more, bonds most of all.")
+CARRY_KINDS = (("bonds", "Combat bonds"), ("bounties", "Bounty vouchers"))
+OURS_TONES = ("ours", "side")
+
+
+def cr_words(n: Any) -> Optional[str]:
+    """Credits short, as the site writes them on the tick (lib/plugin-pairing.js crShort): "4.8M cr", "960k cr"."""
+    try:
+        v = float(n)
+    except (TypeError, ValueError):
+        return None
+    if abs(v) >= 1e9:
+        return f"{v / 1e9:.2f}B cr"
+    if abs(v) >= 1e6:
+        return f"{v / 1e6:.1f}M cr"
+    if abs(v) >= 1e3:
+        return f"{round(v / 1e3)}k cr"
+    return f"{v:.0f} cr"
+
+
+def _carried(feed: Any, key: str) -> list:
+    c = feed.get("carrying") if isinstance(feed, dict) else None
+    rows = c.get(key) if isinstance(c, dict) else None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def _credits(r: dict) -> float:
+    try:
+        return max(0.0, float(r.get("credits") or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def carry_tiles(feed: Any) -> list:
+    """The My tick tab's tiles for what is still to hand in, as tick_tiles makes them: (what, how much, nothing more,
+    and how much of it is for us). How many bonds or vouchers is left unsaid: the credits are what matters."""
+    out = []
+    for key, label in CARRY_KINDS:
+        rows = [r for r in _carried(feed, key) if _credits(r) > 0]
+        if not rows:
+            continue
+        total = sum(_credits(r) for r in rows)
+        ours = [r for r in rows if r.get("tone") in OURS_TONES]
+        mine = sum(_credits(r) for r in ours)
+        if ours and mine == total:
+            whose = "All for " + " and ".join(str(r.get("faction")) for r in ours)
+        elif ours:
+            whose = f"{cr_words(mine)} for " + " and ".join(str(r.get("faction")) for r in ours)
+        else:
+            whose = "None of it for us"
+        out.append((label, cr_words(total), "", whose))
+    return out
+
+
+def carry_words(core) -> Optional[str]:
+    """The strip's line: what the pilot carries for us or a side we back, by kind; nothing when there is none."""
+    bits = []
+    for key, _label in CARRY_KINDS:
+        mine = sum(_credits(r) for r in _carried(core.feed, key) if r.get("tone") in OURS_TONES)
+        if mine > 0:
+            bits.append(f"{cr_words(mine)} in {'bonds' if key == 'bonds' else 'bounties'}")
+    return f"{' and '.join(bits)} for us" if bits else None
+
+
+def here_words(core) -> Optional[str]:
+    """The strip's line for the system the pilot is in, from the site's read of it (feed.here): our faction's
+    influence there and how it moved since the tick, its state, whether it holds the system, and whether the orders
+    name it. Nothing where we have no presence, and nothing while the war line already speaks of this system."""
+    h = core.feed.get("here") if isinstance(core.feed, dict) else None
+    if not isinstance(h, dict) or not _same(h.get("system"), core.system):
+        return None
+    if any(_same(w.get("system"), core.system) for w in _wars(core)):
+        return None
+    ours = h.get("ours") if isinstance(h.get("ours"), dict) else None
+    if not ours or ours.get("influence") is None:
+        return None
+    try:
+        share = float(ours["influence"])
+    except (TypeError, ValueError):
+        return None
+    if share <= 0:
+        return None
+    bits = [f"{ours.get('faction') or 'Our faction'} {share * 100:.1f}%"]
+    change = ours.get("change")
+    if isinstance(change, (int, float)) and abs(change) >= 0.0005:
+        bits[0] += f" ({'up' if change > 0 else 'down'} {abs(change) * 100:.1f})"
+    if ours.get("controls"):
+        bits.append("holds the system")
+    if ours.get("state") and str(ours["state"]).lower() != "none":
+        bits.append(str(ours["state"]))
+    line = ", ".join(bits)
+    return f"{line}. On the orders." if h.get("orders") else line
+
+
 def orders_words(core) -> Optional[str]:
     """What the strip says of the orders, and only while there is something to say (0.3.0): they have changed since
     the pilot last had them open. Opening the Orders tab takes the line away."""
